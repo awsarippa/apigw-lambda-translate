@@ -1,27 +1,27 @@
-# S3 -> Lambda -> Comprehend
-This patterns shows CDK deployment on how to leverage Amazon S3, AWS Lambda, Amazon Comprehend and Amazon DynamoDB to perform Batch Sentiment Analysis in a serverless fashion.
+# API Gateway -> Lambda -> Translate
+This patterns shows CDK deployment on how to leverage Amazon API Gateway, AWS Lambda, and Amazon Translate to perform language translation in a serverless fashion.
 
 ## Architecture
-![Diagram](src/architecture.jpg)
+![Diagram](src/architecture.png)
 
 ### What resources will be created?
 This CDK code will create the following:
-   - One S3 bucket (to hold the text for which sentiment analysis has to be done)
-   - One Lambda function (to invoke the Comprehend API)
-   - One DynamoDB (to store the result of Sentiment Analysis)
-   - One IAM role (for the Lambda function to invoke Comprehend and DynamoDB)
+   - One Lambda function (to invoke the Translate API)
+   - One API Gateway (to trigger the Lambda function with user input)
+   - One IAM role (for the Lambda function to invoke Translate service)
 
 ## Requirements
 
 ### Development Environment
 **Cloud 9**
 
-This demonstration for this pattern is executed in an AWS Cloud9 environment. The EC2 instance used is m5.large (8 GiB RAM + 2 vCPU). However, users have an option to deploy the application using CDK from local environment as well.
+This demonstration for this pattern is executed in an AWS Cloud9 environment. The EC2 instance used is t2.micro (1 GiB RAM + 1 vCPU). However, users have an option to deploy the application using CDK from local environment as well.
 
 ### AWS setup
 **Region**
 
-If you have not yet run `aws configure` and set a default region, you must do so, or you can also run `export AWS_DEFAULT_REGION=<your-region>`. The region used in the demonstration is us-east-1 as Amazon Bedrock is currently not available in every region.
+If you have not yet run `aws configure` and set a default region, you must do so, or you can also run `export AWS_DEFAULT_REGION=<your-region>`. The region used in the demonstration is us-east-1. Please make sure the region selected supports both Translate and Comprehend service.
+(If the user does not know the source language that needs to be translated, the source language is set as `auto` in the lambda function and Translate service internally invokes Comprehend API to detect the source language.) 
 
 **Authorization**
 
@@ -39,7 +39,7 @@ Make sure you have the [AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/gettin
 ### Set up environment and gather packages
 
 ```
-cd s3-lambda-comprehend-cdk-python
+cd apigw-lambda-translate
 ```
 
 Install the required dependencies (aws-cdk-lib and constructs) into your Python environment 
@@ -65,63 +65,25 @@ cdk deploy
 The deployment will create a S3 bucket, a Lambda function and a DynamoDB table.
 
 ## How it works
-The S3 bucket acts as a placeholder to upload the text, required for performing Sentiment Analysis. In the demonstration, we use the contents inside `src\user_input_text.txt`. 
-The file is uploaded to S3 bucket, which triggers the Lambda function. The Lambda function processes the contents within the uploaded file and invokes the Comprehend's `BatchDetectSentiment` API and the analyzed response from Comprehend service is stored in DynamoDB.
+The API Gateway handles the incoming requests from user and it invokes the relevant route. The Lambda, triggered by API Gateway, invokes the Translate's TranslateText API and the analyzed response from Translate service is routed back to the requester.
 
 ## Testing
-Upon successful deployment of the stack, the Output section would provide the `S3 Bucket` in the CDK environment. 
-Upload the sample file `src\user_input_text.txt` into the `S3 bucket`. The upload action triggers the Lambda function and the input text is analyzed.
-A response as below is returned from Amazon Comprehend service and stored in a DynamoDB table with file name as the partition key. 
-As per specific use-cases, the responses can be converted into a flat file to be stored in S3.
+Upon successful deployment of the stack, the Output section would provide the `APIEndpoint` in the CDK environment. Alternatively, the `APIEndpoint` can be found from the Outputs section of the `CloudFormation` stack.
 
-Response from Comprehend Service:
+Use the below format to the test the API (replace the API Endpoint with the one retrieved from the above step):
+```bash
+curl -d '{"input": "I love AWS Services."}' -H 'Content-Type: application/json' https://<abcdefg>.execute-api.<region>.amazonaws.com/TranslateText
 ```
-[{
-	'Index': 0, 
-	'Sentiment': 'NEGATIVE', 
-	'SentimentScore': 
-	{
-		'Positive': 0.0004151896573603153, 
-		'Negative': 0.9991872906684875, 
-		'Neutral': 0.00035902965464629233, 
-		'Mixed': 3.8464131648652256e-05
-	}
-}, 
-{
-	'Index': 1, 
-	'Sentiment': 'POSITIVE', 
-	'SentimentScore': 
-	{
-		'Positive': 0.9949328303337097, 
-		'Negative': 0.00017402479716110975, 
-		'Neutral': 0.004860139451920986, 
-		'Mixed': 3.302405457361601e-05
-	}
-}, 
-{
-	'Index': 2, 'Sentiment': 
-	'POSITIVE', 
-	'SentimentScore': 
-	{
-		'Positive': 0.9485660791397095, 
-		'Negative': 0.003914174623787403, 
-		'Neutral': 0.0472978875041008, 
-		'Mixed': 0.00022181126405484974
-	}
-}, 
-{
-	'Index': 3, 'Sentiment': 'POSITIVE', 
-	'SentimentScore': 
-	{
-		'Positive': 0.5873997211456299, 
-		'Negative': 0.0012677968479692936, 
-		'Neutral': 0.41117972135543823, 
-		'Mixed': 0.00015274948964361101
-	}
-}]
 
+A response as below would be seen on the terminal console:
+```
+{
+    "Translated Text": "J'adore AWS Services.",
+    "statusCode": 200,
+    "Source Text": "I love AWS Services."
+}
 ```
 
 ## Cleanup
 
-To clean up the resources created as part of this demonstration, run the command `cdk destroy` in the directory `s3-lambda-comprehend-cdk-python`. In addition, users are advised to terminate the Cloud9 EC2 instance to avoid any unexpected charges.
+To clean up the resources created as part of this demonstration, run the command `cdk destroy` in the directory `apigw-lambda-translate`. In addition, users are advised to terminate the Cloud9 EC2 instance to avoid any unexpected charges.
